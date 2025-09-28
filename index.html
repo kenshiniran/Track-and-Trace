@@ -4,7 +4,29 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Agentic Track & Trace Dashboard</title>
+    <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
     <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
+    <script type="module">
+        import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js';
+        import { getFirestore, collection, onSnapshot, addDoc, updateDoc, doc } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js';
+        import { getAuth, signInWithCustomToken } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js';
+        
+        // Make Firebase modules available globally
+        window.Firebase = {
+            initializeApp,
+            getFirestore,
+            collection,
+            onSnapshot,
+            addDoc,
+            updateDoc,
+            doc,
+            getAuth,
+            signInWithCustomToken
+        };
+    </script>
     <script>
         // Global variables for Firebase configuration
         window.__app_id = 'demo-app-id';
@@ -16,11 +38,891 @@
             messagingSenderId: "123456789",
             appId: "1:123456789:web:abcdef123456"
         };
-        window.__initial_auth_token = null; // Will be set by your Firebase auth system
+        window.__initial_auth_token = null;
     </script>
-  <script type="module" crossorigin src="./index-BxCUTu4U.js"></script>
 </head>
 <body>
     <div id="root"></div>
+    
+    <script type="text/babel">
+        const { useState, useEffect } = React;
+        const { 
+            Truck, 
+            AlertTriangle, 
+            CheckCircle, 
+            Clock, 
+            MapPin, 
+            User, 
+            Plus,
+            X,
+            Package
+        } = lucide;
+
+        function App() {
+            const [shipments, setShipments] = useState([]);
+            const [loading, setLoading] = useState(true);
+            const [userId, setUserId] = useState(null);
+            const [error, setError] = useState(null);
+
+            // Comprehensive synthetic data for 40 USA road transportation shipments
+            const mockShipments = [
+                {
+                    id: "SHIP-2001",
+                    customer: "Walmart Distribution",
+                    carrier: "Swift Transportation",
+                    status: "In Transit",
+                    origin: "Los Angeles, CA",
+                    destination: "Phoenix, AZ",
+                    predictedEta: "2025-09-29T14:30:00Z",
+                    originalEta: "2025-09-29T12:00:00Z",
+                    distanceRemainingKm: 320,
+                    exceptionType: "DELAY_ALERT",
+                    exceptionDetails: "Traffic congestion on I-10 causing 2.5 hour delay.",
+                    isCritical: true
+                },
+                {
+                    id: "SHIP-2002",
+                    customer: "Amazon Fulfillment",
+                    carrier: "FedEx Ground",
+                    status: "Delivered",
+                    origin: "Dallas, TX",
+                    destination: "Houston, TX",
+                    predictedEta: "2025-09-28T08:00:00Z",
+                    originalEta: "2025-09-28T08:00:00Z",
+                    distanceRemainingKm: 0,
+                    exceptionType: null,
+                    exceptionDetails: null,
+                    isCritical: false
+                },
+                {
+                    id: "SHIP-2003",
+                    customer: "Home Depot Supply",
+                    carrier: "UPS Freight",
+                    status: "In Transit",
+                    origin: "Atlanta, GA",
+                    destination: "Miami, FL",
+                    predictedEta: "2025-09-30T16:45:00Z",
+                    originalEta: "2025-09-30T14:00:00Z",
+                    distanceRemainingKm: 180,
+                    exceptionType: "LFD_RISK",
+                    exceptionDetails: "Weather delays may cause late final delivery.",
+                    isCritical: false
+                },
+                {
+                    id: "SHIP-2004",
+                    customer: "Target Corporation",
+                    carrier: "J.B. Hunt",
+                    status: "In Transit",
+                    origin: "Chicago, IL",
+                    destination: "Detroit, MI",
+                    predictedEta: "2025-09-29T11:30:00Z",
+                    originalEta: "2025-09-29T10:00:00Z",
+                    distanceRemainingKm: 95,
+                    exceptionType: null,
+                    exceptionDetails: null,
+                    isCritical: false
+                },
+                {
+                    id: "SHIP-2005",
+                    customer: "Costco Wholesale",
+                    carrier: "Schneider National",
+                    status: "Delayed",
+                    origin: "Seattle, WA",
+                    destination: "Portland, OR",
+                    predictedEta: "2025-09-29T20:00:00Z",
+                    originalEta: "2025-09-29T15:00:00Z",
+                    distanceRemainingKm: 280,
+                    exceptionType: "ROUTE_DEVIATION",
+                    exceptionDetails: "Detour due to bridge maintenance on I-5.",
+                    isCritical: true
+                },
+                {
+                    id: "SHIP-2006",
+                    customer: "Best Buy Logistics",
+                    carrier: "Werner Enterprises",
+                    status: "In Transit",
+                    origin: "Denver, CO",
+                    destination: "Salt Lake City, UT",
+                    predictedEta: "2025-09-30T09:15:00Z",
+                    originalEta: "2025-09-30T08:30:00Z",
+                    distanceRemainingKm: 420,
+                    exceptionType: null,
+                    exceptionDetails: null,
+                    isCritical: false
+                },
+                {
+                    id: "SHIP-2007",
+                    customer: "Lowe's Distribution",
+                    carrier: "Knight-Swift",
+                    status: "Delivered",
+                    origin: "Nashville, TN",
+                    destination: "Louisville, KY",
+                    predictedEta: "2025-09-28T13:00:00Z",
+                    originalEta: "2025-09-28T13:00:00Z",
+                    distanceRemainingKm: 0,
+                    exceptionType: null,
+                    exceptionDetails: null,
+                    isCritical: false
+                },
+                {
+                    id: "SHIP-2008",
+                    customer: "Kroger Supply Chain",
+                    carrier: "Prime Inc",
+                    status: "In Transit",
+                    origin: "Kansas City, MO",
+                    destination: "Oklahoma City, OK",
+                    predictedEta: "2025-09-29T17:30:00Z",
+                    originalEta: "2025-09-29T16:00:00Z",
+                    distanceRemainingKm: 210,
+                    exceptionType: "DELAY_ALERT",
+                    exceptionDetails: "Driver rest period extending delivery time.",
+                    isCritical: false
+                },
+                {
+                    id: "SHIP-2009",
+                    customer: "Macy's Fulfillment",
+                    carrier: "C.R. England",
+                    status: "In Transit",
+                    origin: "Las Vegas, NV",
+                    destination: "Albuquerque, NM",
+                    predictedEta: "2025-09-30T12:45:00Z",
+                    originalEta: "2025-09-30T11:00:00Z",
+                    distanceRemainingKm: 380,
+                    exceptionType: "LFD_RISK",
+                    exceptionDetails: "High winds may affect delivery schedule.",
+                    isCritical: true
+                },
+                {
+                    id: "SHIP-2010",
+                    customer: "Pepsi Beverages",
+                    carrier: "Maverick Transportation",
+                    status: "Delivered",
+                    origin: "San Antonio, TX",
+                    destination: "Austin, TX",
+                    predictedEta: "2025-09-28T10:30:00Z",
+                    originalEta: "2025-09-28T10:30:00Z",
+                    distanceRemainingKm: 0,
+                    exceptionType: null,
+                    exceptionDetails: null,
+                    isCritical: false
+                },
+                {
+                    id: "SHIP-2011",
+                    customer: "Ford Motor Company",
+                    carrier: "Landstar System",
+                    status: "In Transit",
+                    origin: "Cleveland, OH",
+                    destination: "Buffalo, NY",
+                    predictedEta: "2025-09-29T14:20:00Z",
+                    originalEta: "2025-09-29T13:00:00Z",
+                    distanceRemainingKm: 150,
+                    exceptionType: null,
+                    exceptionDetails: null,
+                    isCritical: false
+                },
+                {
+                    id: "SHIP-2012",
+                    customer: "General Electric",
+                    carrier: "Old Dominion Freight",
+                    status: "In Transit",
+                    origin: "Boston, MA",
+                    destination: "Hartford, CT",
+                    predictedEta: "2025-09-29T16:00:00Z",
+                    originalEta: "2025-09-29T15:30:00Z",
+                    distanceRemainingKm: 85,
+                    exceptionType: null,
+                    exceptionDetails: null,
+                    isCritical: false
+                },
+                {
+                    id: "SHIP-2013",
+                    customer: "Nike Distribution",
+                    carrier: "YRC Freight",
+                    status: "Delayed",
+                    origin: "Portland, OR",
+                    destination: "San Francisco, CA",
+                    predictedEta: "2025-09-30T18:00:00Z",
+                    originalEta: "2025-09-30T14:00:00Z",
+                    distanceRemainingKm: 450,
+                    exceptionType: "DELAY_ALERT",
+                    exceptionDetails: "Mechanical issue resolved, 4-hour delay expected.",
+                    isCritical: true
+                },
+                {
+                    id: "SHIP-2014",
+                    customer: "Starbucks Supply",
+                    carrier: "Roehl Transport",
+                    status: "In Transit",
+                    origin: "Minneapolis, MN",
+                    destination: "Milwaukee, WI",
+                    predictedEta: "2025-09-29T12:15:00Z",
+                    originalEta: "2025-09-29T11:45:00Z",
+                    distanceRemainingKm: 220,
+                    exceptionType: null,
+                    exceptionDetails: null,
+                    isCritical: false
+                },
+                {
+                    id: "SHIP-2015",
+                    customer: "Tesla Motors",
+                    carrier: "Crete Carrier",
+                    status: "In Transit",
+                    origin: "Reno, NV",
+                    destination: "Sacramento, CA",
+                    predictedEta: "2025-09-30T10:30:00Z",
+                    originalEta: "2025-09-30T09:00:00Z",
+                    distanceRemainingKm: 190,
+                    exceptionType: "LFD_RISK",
+                    exceptionDetails: "Mountain weather conditions may cause delays.",
+                    isCritical: false
+                },
+                {
+                    id: "SHIP-2016",
+                    customer: "McDonald's Supply",
+                    carrier: "TMC Transportation",
+                    status: "Delivered",
+                    origin: "St. Louis, MO",
+                    destination: "Memphis, TN",
+                    predictedEta: "2025-09-28T15:00:00Z",
+                    originalEta: "2025-09-28T15:00:00Z",
+                    distanceRemainingKm: 0,
+                    exceptionType: null,
+                    exceptionDetails: null,
+                    isCritical: false
+                },
+                {
+                    id: "SHIP-2017",
+                    customer: "Apple Inc",
+                    carrier: "Heartland Express",
+                    status: "In Transit",
+                    origin: "Cupertino, CA",
+                    destination: "Reno, NV",
+                    predictedEta: "2025-09-29T19:30:00Z",
+                    originalEta: "2025-09-29T18:00:00Z",
+                    distanceRemainingKm: 320,
+                    exceptionType: "DELAY_ALERT",
+                    exceptionDetails: "Heavy traffic through San Francisco Bay Area.",
+                    isCritical: false
+                },
+                {
+                    id: "SHIP-2018",
+                    customer: "Coca-Cola Bottling",
+                    carrier: "PAM Transport",
+                    status: "In Transit",
+                    origin: "Birmingham, AL",
+                    destination: "Jackson, MS",
+                    predictedEta: "2025-09-29T13:45:00Z",
+                    originalEta: "2025-09-29T13:00:00Z",
+                    distanceRemainingKm: 180,
+                    exceptionType: null,
+                    exceptionDetails: null,
+                    isCritical: false
+                },
+                {
+                    id: "SHIP-2019",
+                    customer: "Procter & Gamble",
+                    carrier: "Marten Transport",
+                    status: "In Transit",
+                    origin: "Cincinnati, OH",
+                    destination: "Indianapolis, IN",
+                    predictedEta: "2025-09-29T15:20:00Z",
+                    originalEta: "2025-09-29T14:30:00Z",
+                    distanceRemainingKm: 95,
+                    exceptionType: null,
+                    exceptionDetails: null,
+                    isCritical: false
+                },
+                {
+                    id: "SHIP-2020",
+                    customer: "Johnson & Johnson",
+                    carrier: "Covenant Transport",
+                    status: "Delayed",
+                    origin: "New Brunswick, NJ",
+                    destination: "Philadelphia, PA",
+                    predictedEta: "2025-09-29T21:00:00Z",
+                    originalEta: "2025-09-29T17:00:00Z",
+                    distanceRemainingKm: 75,
+                    exceptionType: "ROUTE_DEVIATION",
+                    exceptionDetails: "Road construction forcing alternate route.",
+                    isCritical: true
+                },
+                {
+                    id: "SHIP-2021",
+                    customer: "Walmart Supercenter",
+                    carrier: "USA Truck",
+                    status: "In Transit",
+                    origin: "Little Rock, AR",
+                    destination: "Tulsa, OK",
+                    predictedEta: "2025-09-29T16:45:00Z",
+                    originalEta: "2025-09-29T16:00:00Z",
+                    distanceRemainingKm: 160,
+                    exceptionType: null,
+                    exceptionDetails: null,
+                    isCritical: false
+                },
+                {
+                    id: "SHIP-2022",
+                    customer: "Home Depot",
+                    carrier: "Celadon Trucking",
+                    status: "In Transit",
+                    origin: "Richmond, VA",
+                    destination: "Raleigh, NC",
+                    predictedEta: "2025-09-29T18:15:00Z",
+                    originalEta: "2025-09-29T17:30:00Z",
+                    distanceRemainingKm: 140,
+                    exceptionType: "LFD_RISK",
+                    exceptionDetails: "Thunderstorm warnings in delivery area.",
+                    isCritical: false
+                },
+                {
+                    id: "SHIP-2023",
+                    customer: "Amazon Prime",
+                    carrier: "Central Refrigerated",
+                    status: "Delivered",
+                    origin: "Jacksonville, FL",
+                    destination: "Tampa, FL",
+                    predictedEta: "2025-09-28T11:30:00Z",
+                    originalEta: "2025-09-28T11:30:00Z",
+                    distanceRemainingKm: 0,
+                    exceptionType: null,
+                    exceptionDetails: null,
+                    isCritical: false
+                },
+                {
+                    id: "SHIP-2024",
+                    customer: "Costco Business",
+                    carrier: "Millis Transfer",
+                    status: "In Transit",
+                    origin: "Spokane, WA",
+                    destination: "Boise, ID",
+                    predictedEta: "2025-09-30T08:45:00Z",
+                    originalEta: "2025-09-30T07:30:00Z",
+                    distanceRemainingKm: 280,
+                    exceptionType: "DELAY_ALERT",
+                    exceptionDetails: "Fuel stop extended due to equipment check.",
+                    isCritical: false
+                },
+                {
+                    id: "SHIP-2025",
+                    customer: "Target Distribution",
+                    carrier: "Averitt Express",
+                    status: "In Transit",
+                    origin: "Columbia, SC",
+                    destination: "Charlotte, NC",
+                    predictedEta: "2025-09-29T14:00:00Z",
+                    originalEta: "2025-09-29T13:15:00Z",
+                    distanceRemainingKm: 120,
+                    exceptionType: null,
+                    exceptionDetails: null,
+                    isCritical: false
+                },
+                {
+                    id: "SHIP-2026",
+                    customer: "Best Buy Mobile",
+                    carrier: "Southeastern Freight",
+                    status: "In Transit",
+                    origin: "Mobile, AL",
+                    destination: "New Orleans, LA",
+                    predictedEta: "2025-09-29T17:30:00Z",
+                    originalEta: "2025-09-29T16:45:00Z",
+                    distanceRemainingKm: 110,
+                    exceptionType: null,
+                    exceptionDetails: null,
+                    isCritical: false
+                },
+                {
+                    id: "SHIP-2027",
+                    customer: "Lowe's Hardware",
+                    carrier: "Watkins Motor Lines",
+                    status: "Delayed",
+                    origin: "Omaha, NE",
+                    destination: "Des Moines, IA",
+                    predictedEta: "2025-09-30T15:30:00Z",
+                    originalEta: "2025-09-30T12:00:00Z",
+                    distanceRemainingKm: 210,
+                    exceptionType: "DELAY_ALERT",
+                    exceptionDetails: "Severe weather causing 3.5-hour delay.",
+                    isCritical: true
+                },
+                {
+                    id: "SHIP-2028",
+                    customer: "Kroger Marketplace",
+                    carrier: "Dupre Logistics",
+                    status: "In Transit",
+                    origin: "Baton Rouge, LA",
+                    destination: "Shreveport, LA",
+                    predictedEta: "2025-09-29T19:00:00Z",
+                    originalEta: "2025-09-29T18:30:00Z",
+                    distanceRemainingKm: 190,
+                    exceptionType: null,
+                    exceptionDetails: null,
+                    isCritical: false
+                },
+                {
+                    id: "SHIP-2029",
+                    customer: "Macy's Department Store",
+                    carrier: "Frozen Food Express",
+                    status: "In Transit",
+                    origin: "Fresno, CA",
+                    destination: "Bakersfield, CA",
+                    predictedEta: "2025-09-29T20:15:00Z",
+                    originalEta: "2025-09-29T19:00:00Z",
+                    distanceRemainingKm: 85,
+                    exceptionType: "LFD_RISK",
+                    exceptionDetails: "Agricultural inspection checkpoint delays.",
+                    isCritical: false
+                },
+                {
+                    id: "SHIP-2030",
+                    customer: "PepsiCo Distribution",
+                    carrier: "Groendyke Transport",
+                    status: "Delivered",
+                    origin: "Wichita, KS",
+                    destination: "Topeka, KS",
+                    predictedEta: "2025-09-28T14:45:00Z",
+                    originalEta: "2025-09-28T14:45:00Z",
+                    distanceRemainingKm: 0,
+                    exceptionType: null,
+                    exceptionDetails: null,
+                    isCritical: false
+                },
+                {
+                    id: "SHIP-2031",
+                    customer: "Ford Assembly Plant",
+                    carrier: "Hirschbach Motor Lines",
+                    status: "In Transit",
+                    origin: "Toledo, OH",
+                    destination: "Grand Rapids, MI",
+                    predictedEta: "2025-09-30T11:30:00Z",
+                    originalEta: "2025-09-30T10:15:00Z",
+                    distanceRemainingKm: 180,
+                    exceptionType: "DELAY_ALERT",
+                    exceptionDetails: "Border crossing inspection causing delays.",
+                    isCritical: false
+                },
+                {
+                    id: "SHIP-2032",
+                    customer: "General Motors",
+                    carrier: "Melton Truck Lines",
+                    status: "In Transit",
+                    origin: "Flint, MI",
+                    destination: "Fort Wayne, IN",
+                    predictedEta: "2025-09-29T22:00:00Z",
+                    originalEta: "2025-09-29T21:00:00Z",
+                    distanceRemainingKm: 240,
+                    exceptionType: null,
+                    exceptionDetails: null,
+                    isCritical: false
+                },
+                {
+                    id: "SHIP-2033",
+                    customer: "Nike Retail",
+                    carrier: "Paschall Truck Lines",
+                    status: "In Transit",
+                    origin: "Eugene, OR",
+                    destination: "Medford, OR",
+                    predictedEta: "2025-09-30T13:45:00Z",
+                    originalEta: "2025-09-30T12:30:00Z",
+                    distanceRemainingKm: 160,
+                    exceptionType: "LFD_RISK",
+                    exceptionDetails: "Mountain pass weather conditions uncertain.",
+                    isCritical: true
+                },
+                {
+                    id: "SHIP-2034",
+                    customer: "Starbucks Regional",
+                    carrier: "Navajo Express",
+                    status: "Delivered",
+                    origin: "Phoenix, AZ",
+                    destination: "Tucson, AZ",
+                    predictedEta: "2025-09-28T16:00:00Z",
+                    originalEta: "2025-09-28T16:00:00Z",
+                    distanceRemainingKm: 0,
+                    exceptionType: null,
+                    exceptionDetails: null,
+                    isCritical: false
+                },
+                {
+                    id: "SHIP-2035",
+                    customer: "Tesla Gigafactory",
+                    carrier: "Builders Transport",
+                    status: "In Transit",
+                    origin: "Sparks, NV",
+                    destination: "Carson City, NV",
+                    predictedEta: "2025-09-29T09:30:00Z",
+                    originalEta: "2025-09-29T08:45:00Z",
+                    distanceRemainingKm: 45,
+                    exceptionType: null,
+                    exceptionDetails: null,
+                    isCritical: false
+                },
+                {
+                    id: "SHIP-2036",
+                    customer: "McDonald's Corporate",
+                    carrier: "Dart Transit",
+                    status: "In Transit",
+                    origin: "Springfield, IL",
+                    destination: "Peoria, IL",
+                    predictedEta: "2025-09-29T15:45:00Z",
+                    originalEta: "2025-09-29T15:00:00Z",
+                    distanceRemainingKm: 95,
+                    exceptionType: null,
+                    exceptionDetails: null,
+                    isCritical: false
+                },
+                {
+                    id: "SHIP-2037",
+                    customer: "Apple Logistics",
+                    carrier: "Decker Truck Line",
+                    status: "Delayed",
+                    origin: "Austin, TX",
+                    destination: "San Antonio, TX",
+                    predictedEta: "2025-09-30T19:30:00Z",
+                    originalEta: "2025-09-30T16:00:00Z",
+                    distanceRemainingKm: 120,
+                    exceptionType: "ROUTE_DEVIATION",
+                    exceptionDetails: "Highway closure forcing 50-mile detour.",
+                    isCritical: true
+                },
+                {
+                    id: "SHIP-2038",
+                    customer: "Coca-Cola Enterprises",
+                    carrier: "Epes Transport",
+                    status: "In Transit",
+                    origin: "Knoxville, TN",
+                    destination: "Chattanooga, TN",
+                    predictedEta: "2025-09-29T18:20:00Z",
+                    originalEta: "2025-09-29T17:45:00Z",
+                    distanceRemainingKm: 85,
+                    exceptionType: null,
+                    exceptionDetails: null,
+                    isCritical: false
+                },
+                {
+                    id: "SHIP-2039",
+                    customer: "Procter & Gamble Plant",
+                    carrier: "FFE Transportation",
+                    status: "In Transit",
+                    origin: "Green Bay, WI",
+                    destination: "Madison, WI",
+                    predictedEta: "2025-09-30T14:15:00Z",
+                    originalEta: "2025-09-30T13:30:00Z",
+                    distanceRemainingKm: 110,
+                    exceptionType: "LFD_RISK",
+                    exceptionDetails: "Potential delivery window conflict at destination.",
+                    isCritical: false
+                },
+                {
+                    id: "SHIP-2040",
+                    customer: "Johnson & Johnson Supply",
+                    carrier: "Gordon Trucking",
+                    status: "In Transit",
+                    origin: "Trenton, NJ",
+                    destination: "Wilmington, DE",
+                    predictedEta: "2025-09-29T12:00:00Z",
+                    originalEta: "2025-09-29T11:30:00Z",
+                    distanceRemainingKm: 55,
+                    exceptionType: null,
+                    exceptionDetails: null,
+                    isCritical: false
+                }
+            ];
+
+            useEffect(() => {
+                // Initialize with mock data for demo
+                setUserId('demo-user-123');
+                setShipments(mockShipments);
+                setLoading(false);
+            }, []);
+
+            const addNewShipment = () => {
+                const newShipment = {
+                    id: `SHIP-${Date.now()}`,
+                    customer: "New Customer Ltd.",
+                    carrier: "Fast Delivery",
+                    status: "In Transit",
+                    origin: "Seattle, WA",
+                    destination: "Portland, OR",
+                    predictedEta: "2025-09-29T18:00:00Z",
+                    originalEta: "2025-09-29T16:00:00Z",
+                    distanceRemainingKm: 280,
+                    exceptionType: "ROUTE_DEVIATION",
+                    exceptionDetails: "Alternative route taken due to road construction.",
+                    isCritical: false
+                };
+                setShipments(prev => [...prev, newShipment]);
+            };
+
+            const resolveException = (shipmentId) => {
+                setShipments(prev => prev.map(shipment => 
+                    shipment.id === shipmentId 
+                        ? { ...shipment, exceptionType: null, exceptionDetails: null, isCritical: false }
+                        : shipment
+                ));
+            };
+
+            const getStatusDisplay = (status) => {
+                switch (status) {
+                    case 'In Transit':
+                        return { color: 'text-blue-600 bg-blue-100', icon: Truck };
+                    case 'Delivered':
+                        return { color: 'text-green-600 bg-green-100', icon: CheckCircle };
+                    case 'Delayed':
+                        return { color: 'text-red-600 bg-red-100', icon: AlertTriangle };
+                    default:
+                        return { color: 'text-gray-600 bg-gray-100', icon: Package };
+                }
+            };
+
+            const formatDate = (dateString) => {
+                return new Date(dateString).toLocaleString();
+            };
+
+            const getExceptionStyling = (exceptionType, isCritical) => {
+                if (!exceptionType) return '';
+                return isCritical 
+                    ? 'border-l-4 border-red-500 bg-red-50' 
+                    : 'border-l-4 border-amber-500 bg-amber-50';
+            };
+
+            if (loading) {
+                return (
+                    <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+                        <div className="text-center">
+                            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
+                            <p className="mt-4 text-gray-600">Loading dashboard...</p>
+                        </div>
+                    </div>
+                );
+            }
+
+            return (
+                <div className="min-h-screen bg-gray-50">
+                    <header className="bg-white shadow-sm border-b">
+                        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+                            <div className="flex justify-between items-center py-4">
+                                <div className="flex items-center space-x-3">
+                                    <Truck className="h-8 w-8 text-blue-600" />
+                                    <h1 className="text-2xl font-bold text-gray-900">Agentic Track & Trace</h1>
+                                </div>
+                                <div className="flex items-center space-x-2 text-sm text-gray-600">
+                                    <User className="h-4 w-4" />
+                                    <span>User ID: {userId}</span>
+                                </div>
+                            </div>
+                        </div>
+                    </header>
+
+                    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+                        <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
+                            <div className="lg:col-span-1">
+                                <div className="bg-white rounded-lg shadow-sm p-6">
+                                    <h2 className="text-lg font-semibold text-gray-900 mb-4">Quick Actions</h2>
+                                    
+                                    <button
+                                        onClick={addNewShipment}
+                                        className="w-full flex items-center justify-center space-x-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg transition-colors"
+                                    >
+                                        <Plus className="h-4 w-4" />
+                                        <span>Add New Shipment</span>
+                                    </button>
+
+                                    <div className="mt-6 pt-6 border-t">
+                                        <h3 className="text-sm font-medium text-gray-700 mb-3">Dashboard Stats</h3>
+                                        <div className="space-y-2 text-sm">
+                                            <div className="flex justify-between">
+                                                <span className="text-gray-600">Total Shipments:</span>
+                                                <span className="font-medium">{shipments.length}</span>
+                                            </div>
+                                            <div className="flex justify-between">
+                                                <span className="text-gray-600">Active Exceptions:</span>
+                                                <span className="font-medium text-red-600">
+                                                    {shipments.filter(s => s.exceptionType).length}
+                                                </span>
+                                            </div>
+                                            <div className="flex justify-between">
+                                                <span className="text-gray-600">In Transit:</span>
+                                                <span className="font-medium text-blue-600">
+                                                    {shipments.filter(s => s.status === 'In Transit').length}
+                                                </span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div className="lg:col-span-3">
+                                <div className="bg-white rounded-lg shadow-sm">
+                                    <div className="px-6 py-4 border-b">
+                                        <h2 className="text-lg font-semibold text-gray-900">Shipments</h2>
+                                    </div>
+
+                                    <div className="overflow-x-auto">
+                                        <table className="w-full">
+                                            <thead className="bg-gray-50">
+                                                <tr>
+                                                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                                        Shipment
+                                                    </th>
+                                                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                                        Status
+                                                    </th>
+                                                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                                        Route
+                                                    </th>
+                                                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                                        ETA
+                                                    </th>
+                                                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                                        Actions
+                                                    </th>
+                                                </tr>
+                                            </thead>
+                                            <tbody className="bg-white divide-y divide-gray-200">
+                                                {shipments.map((shipment) => {
+                                                    const statusDisplay = getStatusDisplay(shipment.status);
+                                                    const StatusIcon = statusDisplay.icon;
+                                                    
+                                                    return (
+                                                        <tr 
+                                                            key={shipment.id} 
+                                                            className={`hover:bg-gray-50 ${getExceptionStyling(shipment.exceptionType, shipment.isCritical)}`}
+                                                        >
+                                                            <td className="px-6 py-4 whitespace-nowrap">
+                                                                <div>
+                                                                    <div className="text-sm font-medium text-gray-900">
+                                                                        {shipment.id}
+                                                                    </div>
+                                                                    <div className="text-sm text-gray-500">
+                                                                        {shipment.customer}
+                                                                    </div>
+                                                                    <div className="text-xs text-gray-400">
+                                                                        via {shipment.carrier}
+                                                                    </div>
+                                                                </div>
+                                                            </td>
+                                                            
+                                                            <td className="px-6 py-4 whitespace-nowrap">
+                                                                <div className="flex items-center space-x-2">
+                                                                    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${statusDisplay.color}`}>
+                                                                        <StatusIcon className="h-3 w-3 mr-1" />
+                                                                        {shipment.status}
+                                                                    </span>
+                                                                </div>
+                                                                {shipment.exceptionType && (
+                                                                    <div className="mt-1 flex items-center space-x-1">
+                                                                        <AlertTriangle className="h-3 w-3 text-red-500" />
+                                                                        <span className="text-xs text-red-600 font-medium">
+                                                                            {shipment.exceptionType.replace('_', ' ')}
+                                                                        </span>
+                                                                    </div>
+                                                                )}
+                                                            </td>
+                                                            
+                                                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                                                                <div className="flex items-center space-x-1">
+                                                                    <MapPin className="h-3 w-3 text-gray-400" />
+                                                                    <span>{shipment.origin}</span>
+                                                                </div>
+                                                                <div className="text-xs text-gray-500 mt-1">
+                                                                    → {shipment.destination}
+                                                                </div>
+                                                                {shipment.distanceRemainingKm > 0 && (
+                                                                    <div className="text-xs text-gray-400 mt-1">
+                                                                        {shipment.distanceRemainingKm}km remaining
+                                                                    </div>
+                                                                )}
+                                                            </td>
+                                                            
+                                                            <td className="px-6 py-4 whitespace-nowrap text-sm">
+                                                                <div className="space-y-1">
+                                                                    <div className="flex items-center space-x-1">
+                                                                        <Clock className="h-3 w-3 text-gray-400" />
+                                                                        <span className="text-gray-600">Original:</span>
+                                                                        <span className="text-gray-900">
+                                                                            {formatDate(shipment.originalEta)}
+                                                                        </span>
+                                                                    </div>
+                                                                    <div className="flex items-center space-x-1">
+                                                                        <Clock className="h-3 w-3 text-blue-500" />
+                                                                        <span className="text-gray-600">Predicted:</span>
+                                                                        <span className={`font-medium ${
+                                                                            new Date(shipment.predictedEta) > new Date(shipment.originalEta) 
+                                                                                ? 'text-red-600' 
+                                                                                : 'text-green-600'
+                                                                        }`}>
+                                                                            {formatDate(shipment.predictedEta)}
+                                                                        </span>
+                                                                    </div>
+                                                                </div>
+                                                            </td>
+                                                            
+                                                            <td className="px-6 py-4 whitespace-nowrap text-sm">
+                                                                {shipment.exceptionType ? (
+                                                                    <button
+                                                                        onClick={() => resolveException(shipment.id)}
+                                                                        className="inline-flex items-center space-x-1 bg-green-600 hover:bg-green-700 text-white px-3 py-1 rounded text-xs transition-colors"
+                                                                    >
+                                                                        <CheckCircle className="h-3 w-3" />
+                                                                        <span>Resolve Exception</span>
+                                                                    </button>
+                                                                ) : (
+                                                                    <span className="text-gray-400 text-xs">No action needed</span>
+                                                                )}
+                                                            </td>
+                                                        </tr>
+                                                    );
+                                                })}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+
+                                {shipments.some(s => s.exceptionType) && (
+                                    <div className="mt-6 bg-white rounded-lg shadow-sm">
+                                        <div className="px-6 py-4 border-b">
+                                            <h3 className="text-lg font-semibold text-gray-900 flex items-center space-x-2">
+                                                <AlertTriangle className="h-5 w-5 text-red-500" />
+                                                <span>Active Exceptions</span>
+                                            </h3>
+                                        </div>
+                                        <div className="p-6">
+                                            <div className="space-y-4">
+                                                {shipments
+                                                    .filter(s => s.exceptionType)
+                                                    .map(shipment => (
+                                                        <div key={shipment.id} className="border rounded-lg p-4 bg-red-50 border-red-200">
+                                                            <div className="flex justify-between items-start">
+                                                                <div>
+                                                                    <h4 className="font-medium text-gray-900">{shipment.id}</h4>
+                                                                    <p className="text-sm text-gray-600 mt-1">{shipment.exceptionDetails}</p>
+                                                                    <div className="flex items-center space-x-4 mt-2 text-xs text-gray-500">
+                                                                        <span>Type: {shipment.exceptionType}</span>
+                                                                        <span>Critical: {shipment.isCritical ? 'Yes' : 'No'}</span>
+                                                                    </div>
+                                                                </div>
+                                                                <button
+                                                                    onClick={() => resolveException(shipment.id)}
+                                                                    className="flex items-center space-x-1 bg-green-600 hover:bg-green-700 text-white px-3 py-1 rounded text-xs transition-colors"
+                                                                >
+                                                                    <X className="h-3 w-3" />
+                                                                    <span>Resolve</span>
+                                                                </button>
+                                                            </div>
+                                                        </div>
+                                                    ))}
+                                            </div>
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            );
+        }
+
+        ReactDOM.render(<App />, document.getElementById('root'));
+    </script>
 </body>
 </html>
